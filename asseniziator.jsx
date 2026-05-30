@@ -13,13 +13,19 @@ const HOURS = ["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","
 
 // ── STORAGE ───────────────────────────────────────────────────────────────────
 async function loadBookings() {
-  try { const r = await window.storage.get("bookings_v1", true); return r ? JSON.parse(r.value) : []; }
-  catch { return []; }
-}
-async function saveBookings(b) {
-  try { await window.storage.set("bookings_v1", JSON.stringify(b), true); } catch {}
+  try {
+    const data = localStorage.getItem("bookings_v1");
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
 }
 
+async function saveBookings(b) {
+  try {
+    localStorage.setItem("bookings_v1", JSON.stringify(b));
+  } catch {}
+}
 function today() {
   return new Date().toISOString().slice(0,10);
 }
