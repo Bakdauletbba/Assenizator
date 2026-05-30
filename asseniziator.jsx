@@ -11,6 +11,11 @@ const TRUCKS = [
 
 const HOURS = ["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"];
 
+const JSONBIN_API_KEY = "$2a$10$REhRy8/coi4b119MhBn0R.D0DqmHUrnaPJJ1TT5RZC7Ik/tiKEjtm";
+const JSONBIN_BIN_ID  = "6a1ae64521f9ee59d29dc2da";
+const JSONBIN_URL     = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
+
+
 // ── STORAGE ───────────────────────────────────────────────────────────────────
 async function loadBookings() {
   try {
