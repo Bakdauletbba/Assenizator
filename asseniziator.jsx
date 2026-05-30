@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+  import { useState, useEffect } from "react";
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const ADMIN_PHONE = "77076337222"; // номер водителя
-const ADMIN_PASS  = "Zamanbek";    // пароль для панели дяди
+
+const ADMIN_PHONE = "77076337222";
+const ADMIN_PASS = "Zamanbek";
 
 const TRUCKS = [
   { id: "16", label: "КамАЗ 16 куб.", icon: "🚛", desc: "Подходит для небольших ям" },
@@ -11,47 +12,72 @@ const TRUCKS = [
 
 const HOURS = ["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"];
 
+// ── JSONBIN CLOUD STORAGE ─────────────────────────────────────────────────────
+// Бесплатное облачное хранилище — все телефоны видят одни данные
+// Зарегистрируйся на jsonbin.io и замени эти значения:
 const JSONBIN_API_KEY = "$2a$10$REhRy8/coi4b119MhBn0R.D0DqmHUrnaPJJ1TT5RZC7Ik/tiKEjtm";
 const JSONBIN_BIN_ID  = "6a1ae64521f9ee59d29dc2da";
 const JSONBIN_URL     = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
 
-
-// ── STORAGE ───────────────────────────────────────────────────────────────────
 async function loadBookings() {
   try {
-    const data = localStorage.getItem("bookings_v1");
-    return data ? JSON.parse(data) : [];
+    const r = await fetch(JSONBIN_URL + "/latest", {
+      headers: { "X-Master-Key": JSONBIN_API_KEY }
+    });
+    const data = await r.json();
+    return data?.record?.bookings ?? [];
   } catch {
-    return [];
+    // Fallback: попробуем localStorage если нет сети
+    try { return JSON.parse(localStorage.getItem("bookings_v1") || "[]"); } catch { return []; }
   }
 }
 
-async function saveBookings(b) {
+async function saveBookings(bookings) {
   try {
-    localStorage.setItem("bookings_v1", JSON.stringify(b));
-  } catch {}
+    await fetch(JSONBIN_URL, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Master-Key": JSONBIN_API_KEY
+      },
+      body: JSON.stringify({ bookings })
+    });
+    // Дублируем в localStorage как кеш
+    localStorage.setItem("bookings_v1", JSON.stringify(bookings));
+  } catch {
+    // Если нет интернета — сохраним хотя бы локально
+    localStorage.setItem("bookings_v1", JSON.stringify(bookings));
+  }
 }
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+
 function today() {
-  return new Date().toISOString().slice(0,10);
+  return new Date().toISOString().slice(0, 10);
 }
+
 function formatDate(d) {
-  const [y,m,day] = d.split("-");
+  const [y, m, day] = d.split("-");
   return `${day}.${m}.${y}`;
 }
-function getDays(n=7) {
+
+function getDays(n = 7) {
   const days = [];
-  for(let i=0;i<n;i++){
-    const d = new Date(); d.setDate(d.getDate()+i);
-    days.push(d.toISOString().slice(0,10));
+  for (let i = 0; i < n; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    days.push(d.toISOString().slice(0, 10));
   }
   return days;
 }
+
 function waLink(phone) {
-  const clean = phone.replace(/\D/g,"");
+  const clean = phone.replace(/\D/g, "");
   return `https://wa.me/${clean}`;
 }
 
 // ── STYLES ────────────────────────────────────────────────────────────────────
+
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;600&family=Golos+Text:wght@400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -71,12 +97,17 @@ body{background:var(--bg);font-family:'Golos Text',sans-serif}
 .header-sub{font-size:10px;color:#ffffff66;margin-top:2px;font-family:'Golos Text',sans-serif}
 .admin-link{font-size:11px;color:#ffffff55;cursor:pointer;border:1px solid #ffffff22;padding:5px 12px;border-radius:6px;transition:all .2s;background:none;font-family:'Golos Text',sans-serif}
 .admin-link:hover{color:#fff;border-color:#ffffff55}
-
 .wrap{width:100%;max-width:480px;padding:0 16px}
 
 /* CARDS */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:16px;animation:fadeUp .4s ease both}
 .card-title{font-family:'Unbounded',sans-serif;font-size:13px;font-weight:400;color:var(--blue);margin-bottom:16px;letter-spacing:.02em}
+
+/* LOADING */
+.loading-bar{width:100%;height:3px;background:var(--border);border-radius:99px;overflow:hidden;margin-bottom:16px}
+.loading-bar-inner{height:100%;background:var(--blue);border-radius:99px;animation:loadingAnim 1.5s infinite ease-in-out}
+@keyframes loadingAnim{0%{width:0%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0%;margin-left:100%}}
+.loading-text{text-align:center;color:var(--muted);font-size:12px;padding:20px}
 
 /* PHONE INPUT */
 .phone-hero{text-align:center;padding:32px 24px}
@@ -123,7 +154,6 @@ body{background:var(--bg);font-family:'Golos Text',sans-serif}
 .day-name{font-size:10px;color:var(--muted);display:block;margin-bottom:3px}
 .day-num{font-family:'Unbounded',sans-serif;font-size:16px;font-weight:400;color:var(--text)}
 .day-btn.active .day-name,.day-btn.active .day-num{color:#fff}
-
 .hours{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
 .hour-btn{padding:10px 4px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg);cursor:pointer;font-size:12px;font-family:'Golos Text',sans-serif;color:var(--text);transition:all .2s;text-align:center}
 .hour-btn:hover:not(.taken){border-color:var(--blue-mid)}
@@ -174,25 +204,50 @@ body{background:var(--bg);font-family:'Golos Text',sans-serif}
 .login-wrap p{color:var(--muted);font-size:12px;margin-bottom:24px}
 .err{color:#c0392b;font-size:12px;margin-bottom:10px}
 
+/* SETUP NOTICE */
+.setup-notice{background:#fff8e1;border:1.5px solid #f0c040;border-radius:12px;padding:16px;margin-bottom:16px;font-size:12px;color:#7a6010;line-height:1.7}
+.setup-notice strong{color:#5a4000;display:block;margin-bottom:4px;font-family:'Unbounded',sans-serif;font-size:11px}
+.setup-notice code{background:#f0e8c0;padding:1px 6px;border-radius:4px;font-size:11px}
+
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 `;
 
 const DAY_NAMES = ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
 
+// Проверяем настроен ли JSONBin
+const IS_CONFIGURED = !JSONBIN_BIN_ID.startsWith("REPLACE") && !JSONBIN_API_KEY.startsWith("$2a$10$REPLACE");
+
 export default function App() {
-  const [page, setPage] = useState("home"); // home|book|success|adminlogin|admin
-  const [step, setStep] = useState(1); // 1=truck 2=datetime 3=address 4=confirm
-  const [phone, setPhone] = useState("");
-  const [truck, setTruck] = useState(null);
-  const [selDay, setSelDay] = useState(today());
+  const [page, setPage]       = useState("home");
+  const [step, setStep]       = useState(1);
+  const [phone, setPhone]     = useState("");
+  const [truck, setTruck]     = useState(null);
+  const [selDay, setSelDay]   = useState(today());
   const [selHour, setSelHour] = useState(null);
   const [address, setAddress] = useState("");
   const [bookings, setBookings] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
   const [adminPass, setAdminPass] = useState("");
-  const [adminErr, setAdminErr] = useState("");
-  const [adminTab, setAdminTab] = useState("today");
+  const [adminErr, setAdminErr]   = useState("");
+  const [adminTab, setAdminTab]   = useState("today");
 
-  useEffect(() => { loadBookings().then(setBookings); }, []);
+  // Загружаем брони из облака при старте
+  useEffect(() => {
+    loadBookings().then(b => {
+      setBookings(b);
+      setLoading(false);
+    });
+  }, []);
+
+  // Обновляем брони каждые 30 секунд (чтобы видеть новые записи других)
+  useEffect(() => {
+    if (!IS_CONFIGURED) return;
+    const interval = setInterval(() => {
+      loadBookings().then(setBookings);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const takenSlots = (day) =>
     bookings.filter(b => b.day === day).map(b => b.hour);
@@ -202,6 +257,7 @@ export default function App() {
   const days = getDays(7);
 
   const doBook = async () => {
+    setSaving(true);
     const b = {
       id: Date.now().toString(),
       phone,
@@ -214,6 +270,7 @@ export default function App() {
     const updated = [...bookings, b];
     setBookings(updated);
     await saveBookings(updated);
+    setSaving(false);
     setPage("success");
   };
 
@@ -224,10 +281,9 @@ export default function App() {
   };
 
   const adminBookings = adminTab === "today"
-    ? bookings.filter(b => b.day === today()).sort((a,b)=>a.hour.localeCompare(b.hour))
-    : [...bookings].sort((a,b)=> (a.day+a.hour).localeCompare(b.day+b.hour));
+    ? bookings.filter(b => b.day === today()).sort((a, b) => a.hour.localeCompare(b.hour))
+    : [...bookings].sort((a, b) => (a.day + a.hour).localeCompare(b.day + b.hour));
 
-  // ── RENDER ──────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{css}</style>
@@ -237,12 +293,24 @@ export default function App() {
             <div className="logo">Ассени<span>затор</span></div>
             <div className="header-sub">Откачка септиков · 2 КамАЗа</div>
           </div>
-          <button className="admin-link" onClick={() => setPage(page==="adminlogin"||page==="admin"?"home":"adminlogin")}>
-            {page==="admin"?"← Выйти":"Панель"}
+          <button className="admin-link"
+            onClick={() => setPage(page === "adminlogin" || page === "admin" ? "home" : "adminlogin")}>
+            {page === "admin" ? "← Выйти" : "Панель"}
           </button>
         </div>
 
         <div className="wrap">
+
+          {/* ── SETUP NOTICE (показывается пока не настроен JSONBin) ── */}
+          {!IS_CONFIGURED && (
+            <div className="setup-notice">
+              <strong>⚙️ Нужно настроить облако</strong>
+              1. Зайди на <strong>jsonbin.io</strong> → зарегистрируйся бесплатно<br/>
+              2. Создай новый Bin с содержимым: <code>{"{ \"bookings\": [] }"}</code><br/>
+              3. Скопируй <strong>Bin ID</strong> и <strong>API Key</strong><br/>
+              4. Вставь их в файл вместо <code>REPLACE_WITH_YOUR_BIN_ID</code> и <code>REPLACE_WITH_YOUR_API_KEY</code>
+            </div>
+          )}
 
           {/* ── HOME ── */}
           {page === "home" && (
@@ -252,30 +320,50 @@ export default function App() {
                 <h1>Запись на откачку</h1>
                 <p>Введи свой номер WhatsApp — мы найдём тебя в базе и запишем быстро.</p>
                 <div className="inp-group">
-                  <input className="inp" placeholder="7700 000 00 00" value={phone}
-                    onChange={e=>setPhone(e.target.value.replace(/\D/g,""))}
-                    onKeyDown={e=>e.key==="Enter"&&phone.length>=10&&(setStep(1),setPage("book"))}
-                    maxLength={12} type="tel" />
-                  <button className="btn" disabled={phone.length<10}
-                    onClick={()=>{setStep(1);setPage("book")}}>Далее →</button>
+                  <input
+                    className="inp"
+                    placeholder="7700 000 00 00"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value.replace(/\D/g, ""))}
+                    onKeyDown={e => e.key === "Enter" && phone.length >= 10 && (setStep(1), setPage("book"))}
+                    maxLength={12}
+                    type="tel"
+                  />
+                  <button className="btn" disabled={phone.length < 10}
+                    onClick={() => { setStep(1); setPage("book"); }}>
+                    Далее →
+                  </button>
                 </div>
                 <p className="hint">Номер используется только для связи с водителем</p>
               </div>
 
-              {myBookings.length > 0 && (
+              {loading && (
+                <div style={{ marginBottom: 16 }}>
+                  <div className="loading-bar"><div className="loading-bar-inner" /></div>
+                  <div className="loading-text">Загружаем записи…</div>
+                </div>
+              )}
+
+              {!loading && myBookings.length > 0 && (
                 <div className="card">
                   <div className="card-title">Мои записи</div>
-                  {myBookings.map(b=>(
+                  {myBookings.map(b => (
                     <div className="booking-card" key={b.id}>
                       <div className="bc-top">
                         <span className="bc-datetime">{formatDate(b.day)} · {b.hour}</span>
                         <span className="bc-truck">{b.truck} куб.</span>
                       </div>
                       <div className="bc-rows">
-                        <div className="bc-row"><span className="bc-icon">📍</span><span className="bc-text">{b.address}</span></div>
+                        <div className="bc-row">
+                          <span className="bc-icon">📍</span>
+                          <span className="bc-text">{b.address}</span>
+                        </div>
                       </div>
-                      <button style={{marginTop:10,background:"none",border:"1px solid #e0d8c8",color:"#c0392b",fontSize:11,padding:"5px 12px",borderRadius:7,cursor:"pointer",fontFamily:"'Golos Text',sans-serif"}}
-                        onClick={()=>cancelBooking(b.id)}>Отменить</button>
+                      <button
+                        style={{ marginTop: 10, background: "none", border: "1px solid #e0d8c8", color: "#c0392b", fontSize: 11, padding: "5px 12px", borderRadius: 7, cursor: "pointer", fontFamily: "'Golos Text',sans-serif" }}
+                        onClick={() => cancelBooking(b.id)}>
+                        Отменить
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -287,15 +375,16 @@ export default function App() {
           {page === "book" && (
             <div className="card">
               <div className="steps">
-                {[1,2,3,4].map(s=><div key={s} className={`step ${step>=s?"done":""}`}/>)}
+                {[1, 2, 3, 4].map(s => <div key={s} className={`step ${step >= s ? "done" : ""}`} />)}
               </div>
 
               {/* STEP 1 — TRUCK */}
               {step === 1 && <>
                 <div className="card-title">Выбери КамАЗ</div>
                 <div className="trucks">
-                  {TRUCKS.map(t=>(
-                    <div key={t.id} className={`truck-card ${truck===t.id?"selected":""}`} onClick={()=>setTruck(t.id)}>
+                  {TRUCKS.map(t => (
+                    <div key={t.id} className={`truck-card ${truck === t.id ? "selected" : ""}`}
+                      onClick={() => setTruck(t.id)}>
                       <span className="truck-emoji">{t.icon}</span>
                       <div className="truck-info">
                         <h3>{t.label}</h3>
@@ -305,9 +394,9 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-                <div style={{marginTop:20,display:"flex",gap:8}}>
-                  <button className="btn ghost" onClick={()=>setPage("home")}>← Назад</button>
-                  <button className="btn full" disabled={!truck} onClick={()=>setStep(2)}>Далее →</button>
+                <div style={{ marginTop: 20, display: "flex", gap: 8 }}>
+                  <button className="btn ghost" onClick={() => setPage("home")}>← Назад</button>
+                  <button className="btn full" disabled={!truck} onClick={() => setStep(2)}>Далее →</button>
                 </div>
               </>}
 
@@ -315,10 +404,12 @@ export default function App() {
               {step === 2 && <>
                 <div className="card-title">Выбери дату и время</div>
                 <div className="days">
-                  {days.map(d=>{
+                  {days.map(d => {
                     const dt = new Date(d);
                     return (
-                      <button key={d} className={`day-btn ${selDay===d?"active":""}`} onClick={()=>{setSelDay(d);setSelHour(null)}}>
+                      <button key={d}
+                        className={`day-btn ${selDay === d ? "active" : ""}`}
+                        onClick={() => { setSelDay(d); setSelHour(null); }}>
                         <span className="day-name">{DAY_NAMES[dt.getDay()]}</span>
                         <span className="day-num">{dt.getDate()}</span>
                       </button>
@@ -326,29 +417,36 @@ export default function App() {
                   })}
                 </div>
                 <div className="hours">
-                  {HOURS.map(h=>{
+                  {HOURS.map(h => {
                     const taken = takenSlots(selDay).includes(h);
                     return (
-                      <button key={h} className={`hour-btn ${taken?"taken":""} ${selHour===h&&!taken?"active":""}`}
-                        onClick={()=>!taken&&setSelHour(h)}>
+                      <button key={h}
+                        className={`hour-btn ${taken ? "taken" : ""} ${selHour === h && !taken ? "active" : ""}`}
+                        onClick={() => !taken && setSelHour(h)}>
                         {h}
                       </button>
                     );
                   })}
                 </div>
-                <div style={{marginTop:20,display:"flex",gap:8}}>
-                  <button className="btn ghost" onClick={()=>setStep(1)}>← Назад</button>
-                  <button className="btn full" disabled={!selHour} onClick={()=>setStep(3)}>Далее →</button>
+                <div style={{ marginTop: 20, display: "flex", gap: 8 }}>
+                  <button className="btn ghost" onClick={() => setStep(1)}>← Назад</button>
+                  <button className="btn full" disabled={!selHour} onClick={() => setStep(3)}>Далее →</button>
                 </div>
               </>}
 
               {/* STEP 3 — ADDRESS */}
               {step === 3 && <>
                 <div className="card-title">Адрес откачки</div>
-                <textarea className="textarea" rows={3} placeholder="Например: ул. Абая 12, частный дом, зелёные ворота" value={address} onChange={e=>setAddress(e.target.value)} />
-                <div style={{marginTop:16,display:"flex",gap:8}}>
-                  <button className="btn ghost" onClick={()=>setStep(2)}>← Назад</button>
-                  <button className="btn full" disabled={address.trim().length<5} onClick={()=>setStep(4)}>Далее →</button>
+                <textarea
+                  className="textarea"
+                  rows={3}
+                  placeholder="Например: ул. Абая 12, частный дом, зелёные ворота"
+                  value={address}
+                  onChange={e => setAddress(e.target.value)}
+                />
+                <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+                  <button className="btn ghost" onClick={() => setStep(2)}>← Назад</button>
+                  <button className="btn full" disabled={address.trim().length < 5} onClick={() => setStep(4)}>Далее →</button>
                 </div>
               </>}
 
@@ -360,11 +458,13 @@ export default function App() {
                   <div className="confirm-row"><span className="confirm-label">КамАЗ</span><span className="confirm-val">{truck} кубовый</span></div>
                   <div className="confirm-row"><span className="confirm-label">Дата</span><span className="confirm-val">{formatDate(selDay)}</span></div>
                   <div className="confirm-row"><span className="confirm-label">Время</span><span className="confirm-val">{selHour}</span></div>
-                  <div className="confirm-row"><span className="confirm-label">Адрес</span><span className="confirm-val" style={{maxWidth:"60%"}}>{address}</span></div>
+                  <div className="confirm-row"><span className="confirm-label">Адрес</span><span className="confirm-val" style={{ maxWidth: "60%" }}>{address}</span></div>
                 </div>
-                <div style={{display:"flex",gap:8}}>
-                  <button className="btn ghost" onClick={()=>setStep(3)}>← Назад</button>
-                  <button className="btn orange full" onClick={doBook}>✓ Записаться</button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn ghost" onClick={() => setStep(3)}>← Назад</button>
+                  <button className="btn orange full" disabled={saving} onClick={doBook}>
+                    {saving ? "Сохраняем…" : "✓ Записаться"}
+                  </button>
                 </div>
               </>}
             </div>
@@ -380,8 +480,9 @@ export default function App() {
                 <a className="wa-btn" href={waLink(ADMIN_PHONE)} target="_blank" rel="noreferrer">
                   <span>💬</span> Написать водителю
                 </a>
-                <div style={{marginTop:16}}>
-                  <button className="btn ghost full" onClick={()=>{setStep(1);setTruck(null);setSelHour(null);setAddress("");setPage("home")}}>
+                <div style={{ marginTop: 16 }}>
+                  <button className="btn ghost full"
+                    onClick={() => { setStep(1); setTruck(null); setSelHour(null); setAddress(""); setPage("home"); }}>
                     На главную
                   </button>
                 </div>
@@ -395,10 +496,17 @@ export default function App() {
               <h2>Панель дяди 🔐</h2>
               <p>Введи пароль для просмотра всех записей</p>
               {adminErr && <div className="err">{adminErr}</div>}
-              <input className="inp" style={{width:"100%",marginBottom:10}} type="password"
-                placeholder="Пароль" value={adminPass} onChange={e=>setAdminPass(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&(adminPass===ADMIN_PASS?(setPage("admin"),setAdminErr("")):(setAdminErr("Неверный пароль")))} />
-              <button className="btn full" onClick={()=>adminPass===ADMIN_PASS?(setPage("admin"),setAdminErr("")):(setAdminErr("Неверный пароль"))}>
+              <input
+                className="inp"
+                style={{ width: "100%", marginBottom: 10 }}
+                type="password"
+                placeholder="Пароль"
+                value={adminPass}
+                onChange={e => setAdminPass(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && (adminPass === ADMIN_PASS ? (setPage("admin"), setAdminErr("")) : setAdminErr("Неверный пароль"))}
+              />
+              <button className="btn full"
+                onClick={() => adminPass === ADMIN_PASS ? (setPage("admin"), setAdminErr("")) : setAdminErr("Неверный пароль")}>
                 Войти →
               </button>
             </div>
@@ -409,19 +517,19 @@ export default function App() {
             <>
               <div className="admin-head">
                 <h2>Записи <span className="badge">{bookings.length}</span></h2>
-                <button className="btn ghost" onClick={()=>setPage("home")}>← Выйти</button>
+                <button className="btn ghost" onClick={() => setPage("home")}>← Выйти</button>
               </div>
               <div className="tab-row">
-                <button className={`tab ${adminTab==="today"?"active":""}`} onClick={()=>setAdminTab("today")}>
-                  Сегодня ({bookings.filter(b=>b.day===today()).length})
+                <button className={`tab ${adminTab === "today" ? "active" : ""}`} onClick={() => setAdminTab("today")}>
+                  Сегодня ({bookings.filter(b => b.day === today()).length})
                 </button>
-                <button className={`tab ${adminTab==="all"?"active":""}`} onClick={()=>setAdminTab("all")}>
+                <button className={`tab ${adminTab === "all" ? "active" : ""}`} onClick={() => setAdminTab("all")}>
                   Все записи
                 </button>
               </div>
               {adminBookings.length === 0
                 ? <div className="empty-state">Записей пока нет 🙂</div>
-                : adminBookings.map(b=>(
+                : adminBookings.map(b => (
                   <div className="booking-card" key={b.id}>
                     <div className="bc-top">
                       <span className="bc-datetime">{formatDate(b.day)} · {b.hour}</span>
@@ -434,8 +542,11 @@ export default function App() {
                     <a className="wa-btn" href={waLink(b.phone)} target="_blank" rel="noreferrer">
                       <span>💬</span> Открыть WhatsApp клиента
                     </a>
-                    <button style={{marginLeft:8,background:"none",border:"1px solid #e0d8c8",color:"#c0392b",fontSize:11,padding:"7px 12px",borderRadius:8,cursor:"pointer",fontFamily:"'Golos Text',sans-serif"}}
-                      onClick={()=>cancelBooking(b.id)}>Удалить</button>
+                    <button
+                      style={{ marginLeft: 8, background: "none", border: "1px solid #e0d8c8", color: "#c0392b", fontSize: 11, padding: "7px 12px", borderRadius: 8, cursor: "pointer", fontFamily: "'Golos Text',sans-serif" }}
+                      onClick={() => cancelBooking(b.id)}>
+                      Удалить
+                    </button>
                   </div>
                 ))
               }
@@ -447,3 +558,4 @@ export default function App() {
     </>
   );
 }
+              
